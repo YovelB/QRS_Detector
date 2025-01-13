@@ -1,0 +1,22 @@
+# CCS generated files
+Debug/
+Release/
+
+# workspace files
+dvt/
+.metadata/
+.tempFiles/
+RemoteSystemsTempFiles/
+
+# project files
+targetConfigs/
+.launches/
+.config/
+.settings/
+.ccsproject
+.cproject
+.project
+.xdchelp
+
+# user files
+Resources/
