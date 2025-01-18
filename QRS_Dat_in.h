@@ -10,7 +10,7 @@
  * format: normalized floating-point values
  * units: amplitude range roughly (-2 to +2 range)
  *
- * A normal PQRST wave typically takes 0.4-0.6 seconds for one cycle
+ * a normal PQRST wave typically takes 0.4-0.6 seconds for one cycle
  * so, this data maybe represents multiple PQRST waves from an ECG signal
  * but no this data only represents one PQRST wave.
  */
