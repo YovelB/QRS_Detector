@@ -1,7 +1,7 @@
 #ifndef ECG_FILTERS_H
 #define ECG_FILTERS_H
 
-#include <stdint.h>
+#include <stddef.h>
 
 /*!
  * @brief IIR Biquad filter - Direct Form II
@@ -17,9 +17,9 @@
  * - a[k] are denominator coefficients (feedback)
  * - a0 is normalized to 1.0
  *
- * @return Filtered output sample with applied gain
+ * @return filtered output sample with applied gain
  */
-float iir_biquad_filter(const float (*a)[3], const float (*b)[3], float (*d)[2], int num_stages, float sample);
+float iir_biquad_filter(const float (*a)[3], const float (*b)[3], float (*d)[2], size_t num_stages, float sample);
 
 /*!
  * @brief Baseline wander removal high-pass filter
@@ -30,12 +30,23 @@ float iir_biquad_filter(const float (*a)[3], const float (*b)[3], float (*d)[2],
  * - Poor electrode contact
  * - Electrode impedance changes
  * 
- * - Cutoff frequency: 0.5 Hz
+ * - Cutoff frequency: 0.67 Hz
  * 
  * @param sample The current input sample to filter
- * @return Filtered output sample
+ * @return filtered output sample
  */
 float baseline_wander_filter(float sample);
+
+/*!
+ * @brief Baseline wander removal high-pass filter
+ *
+ * Removes low-frequency noise below 3Hz cause by noise
+ * - Cutoff frequency: 3 Hz
+ * 
+ * @param sample The current input sample to filter
+ * @return filtered output sample
+ */
+float lowfreq_noise_filter(float sample);
 
 /*!
  * @brief Anti-aliasing low-pass filter
@@ -45,10 +56,10 @@ float baseline_wander_filter(float sample);
  * so any frequencies above this must be attenuated to prevent them from appearing
  * as false lower frequencies in the sampled signal.
  * 
- * - Cutoff frequency: 40 Hz
+ * - Cutoff frequency: 35 Hz
  * 
  * @param sample The current input sample to filter
- * @return Filtered output sample
+ * @return filtered output sample
  */
 float anti_aliasing_filter(float sample);
 
@@ -62,10 +73,10 @@ float anti_aliasing_filter(float sample);
  * - Attenuates P and T waves (below 10Hz)
  * - Reduces high-frequency noise (above 25Hz)
  *
- * - Passband: 10-25 Hz
+ * - Passband: 10-30 Hz
  * 
  * @param sample The current input sample to filter
- * @return Filtered output sample
+ * @return filtered output sample
  */
 float qrs_enhance_filter(float sample);
 

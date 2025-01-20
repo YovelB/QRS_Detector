@@ -1,6 +1,6 @@
 #include "buffer.h"
 
-void buffer_write(volatile float *buffer, volatile uint16_t *index, float value, uint16_t size)
+void buffer_write(volatile float *buffer, volatile size_t* index, float value, size_t size)
 {
 	/* write value to current index */
 	buffer[*index] = value;
@@ -15,7 +15,7 @@ void buffer_write(volatile float *buffer, volatile uint16_t *index, float value,
 	}
 }
 
-float buffer_read(volatile float *buffer, uint16_t index, uint16_t size)
+float buffer_read(volatile float *buffer, size_t index, size_t size)
 {
   /* ensure index is inside bounds */
   index = index % size;

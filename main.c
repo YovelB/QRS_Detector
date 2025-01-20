@@ -3,34 +3,18 @@
  *****************************************************************************/
 
 /* Standard C headers */
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <stddef.h> /* for size_t - for 64 bit machines - unsigned int 64 bit */
 
 /* XDCtools Header files */
-#include <xdc/cfg/global.h>
-#include <xdc/runtime/Error.h>
-#include <xdc/runtime/Log.h>
-#include <xdc/runtime/System.h>
-#include <xdc/runtime/Timestamp.h>
-#include <xdc/runtime/Types.h>
 #include <xdc/std.h>
+#include <xdc/cfg/global.h>
+#include <xdc/runtime/Log.h>
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Swi.h>
 #include <ti/sysbios/knl/Task.h>
-
-/* TI-RTOS Header files */
-#include <ti/drv/gpio/GPIO.h>
-#include <ti/drv/gpio/soc/GPIO_soc.h>
-#include <ti/drv/gpio/test/led_blink/src/GPIO_board.h>
-
-/* Board specific headers */
-#include <ti/board/board.h>
-#include <ti/csl/csl_clec.h>
 
 /* User headers */
 #include "QRS_Dat_in.h"
@@ -44,30 +28,29 @@
  *****************************************************************************/
 
 /* global variable definitions - actual memory allocation happens here */
-volatile float g_ecg_buffer[BUFFER_SIZE];             /* circular buffer for storing ECG samples */
-volatile float g_ecg_filtered_buffer[BUFFER_SIZE];    /* buffer for fitlered ECG samples */
-volatile uint16_t g_buffer_index = 0;                 /* current index pos in buffer */
-volatile uint16_t g_process_index = 0;                /* processing index for filtered buffer */
+/* needs to be volatile - accessed by ISR and task concurrently */
+volatile float g_ecg_buffer[BUFFER_SIZE]; /* circular buffer for storing ECG samples */
+volatile float g_ecg_filtered_buffer[BUFFER_SIZE]; /* buffer for fitlered ECG samples */
+volatile size_t g_buffer_index = 0; /* current index pos in buffer */
+volatile size_t g_filtered_index = 0; /* processing index for filtered buffer */
 
-/******************************************************************************
- * PRIVATE FUNCTION PROTOTYPES
- *****************************************************************************/
+/* Pan-Tompkins algorithm buffers and indices */
+float g_derivative_buffer[BUFFER_SIZE]; /* buffer for derivative filter output */
+size_t g_derivative_index = 0; /* index for derivative buffer */
 
-/******************************************************************************
- * PUBLIC FUNCTION PROTOTYPES
- *****************************************************************************/
+float g_squared_buffer[BUFFER_SIZE]; /* buffer for squared signal output */
+size_t g_squared_index = 0; /* index for squared buffer */
 
-/******************************************************************************
- * PRIVATE FUNCTION IMPLEMENTATIONS
- *****************************************************************************/
+float g_mwi_buffer[MWI_WINDOW_SIZE]; /* buffer for moving window integration */
+size_t g_mwi_index = 0; /* index for MWI buffer (wraps around MWI_WINDOW_SIZE) */
 
-/*******************************************************************************
- * PUBLIC FUNCTION IMPLEMENTATIONS
- ******************************************************************************/
+/* Buffer to store MWI output */
+float g_mwi_output[BUFFER_SIZE]; /* buffer to store MWI results */
+size_t g_mwi_output_index = 0; /* index for MWI output buffer */
 
-/*******************************************************************************
- * HWI/SWI FUNCTION IMPLEMENTATIONS
- ******************************************************************************/
+/* init QRS detection parameters */
+qrs_params_t g_qrs_params = { .signal_threshold = 0.0f, .noise_threshold = 0.0, .peak_value = 0.0f, .rr_interval = 0,
+		.last_qrs_index = 0 };
 
 /*!
  * @brief Timer64P0 (Timer ID 0) ISR for ECG sampling
@@ -88,16 +71,14 @@ volatile uint16_t g_process_index = 0;                /* processing index for fi
 
 Void ECG_Timer_ISR(Void)
 {
-  /* read the new sample from the QRS_IN data */
-  float sample = buffer_read(QRS_IN, g_buffer_index, QRS_BUFFER_SIZE);
+	/* read the new sample from the QRS_IN data */
+	float sample = buffer_read(QRS_IN, g_buffer_index, QRS_BUFFER_SIZE);
 
-Log_info2("New sample[%u]: %d", (IArg)g_buffer_index, (IArg)((int)(sample * 1000)));
-
-  /* write into the cyclic buffer */
+	/* write into the cyclic buffer */
 	buffer_write(g_ecg_buffer, &g_buffer_index, sample, BUFFER_SIZE);
 
-  /* signal that new sample is ready */
-  Semaphore_post(g_sample_ready_sem);
+	/* signal that new sample is ready */
+	Semaphore_post(g_sample_ready_sem);
 }
 
 /******************************************************************************
@@ -124,31 +105,37 @@ Log_info2("New sample[%u]: %d", (IArg)g_buffer_index, (IArg)((int)(sample * 1000
  * @note this task should be configured with lower priority than sampling to prevent timing issues.
  */
 Void ECG_SignalConditionTask(UArg arg0, UArg arg1)
-{ 
-  /* infinite task loop */
+{
+	/* infinite task loop */
 	while (1)
 	{
-    /* wait for signal that new sample is ready */
-    Semaphore_pend(g_sample_ready_sem, BIOS_WAIT_FOREVER);
-    
-    float input_sample = buffer_read(g_ecg_buffer, g_process_index, BUFFER_SIZE);
-    Log_info2("Processing sample[%d]: %f", (IArg)g_process_index, (IArg)(input_sample * 1000));
+		/* wait for signal that new sample is ready */
+		Semaphore_pend(g_sample_ready_sem, BIOS_WAIT_FOREVER);
 
-    /* apply the Baseline Wander removal filter on the sample */
-    float filtered_sample = baseline_wander_filter(input_sample);
-    Log_info1("Filtered output: %f", (IArg)(filtered_sample * 1000));
+		float input_sample = buffer_read(g_ecg_buffer, g_filtered_index, BUFFER_SIZE);
+    Log_info1("Raw ECG: %d", (IArg)(input_sample * 1000));
 
-    /* apply the Anti-Aliasing filter on the sample */
-    //filtered_sample = anti_aliasing_filter(filtered_sample);
-    
-    /* apply the QRS enhance filter on the sample */
-    filtered_sample = qrs_enhance_filter(filtered_sample);
+		/* apply the Baseline Wander removal filter on the sample */
+		float filtered_sample = baseline_wander_filter(input_sample);
+    Log_info1("Baseline filtered: %d", (IArg)(filtered_sample * 1000));
+
+		/* apply the LowFreq noise filter on the sample */
+		filtered_sample = lowfreq_noise_filter(filtered_sample);
+    Log_info1("LowFreq filtered: %d", (IArg)(filtered_sample * 1000));
+
+		/* apply the Anti-Aliasing filter on the sample */
+		filtered_sample = anti_aliasing_filter(filtered_sample);
+    Log_info1("Anti alias filtered: %d", (IArg)(filtered_sample * 1000));
+
+		/* apply the QRS enhance filter on the sample */
+		filtered_sample = qrs_enhance_filter(filtered_sample);
+    Log_info1("QRS enhanced: %d", (IArg)(filtered_sample * 1000));
 
 		/* write filtered sample to the buffer */
-		buffer_write(g_ecg_filtered_buffer, &g_process_index, filtered_sample, BUFFER_SIZE);
+		buffer_write(g_ecg_filtered_buffer, &g_filtered_index, filtered_sample, BUFFER_SIZE);
 
-    /* signal that the filtered sample is ready */
-    Semaphore_post(g_filtered_ready_sem);
+		/* signal that the filtered sample is ready */
+		Semaphore_post(g_filtered_ready_sem);
 	}
 }
 
@@ -171,11 +158,51 @@ Void ECG_SignalConditionTask(UArg arg0, UArg arg1)
  */
 Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
 {
-  /* wait for signal that new sample is ready */
-  Semaphore_pend(g_filtered_ready_sem, BIOS_WAIT_FOREVER);
-  
-  /* use differentiation method */  
-  //derivative_filter(float *buffer, uint16_t index, float sample);
+	/* the derivative method needs atleast 5 samples 2 future 2 past and 1 current sample */
+	/* however the MWI_WINDOW_SIZE is 30 so we need to wait atleast for 30 samples */
+	const size_t SAMPLES_NEEDED = 30;
+
+	/* execute feature_extract every new sample */
+	while (1)
+	{
+		/* wait for filtered sample from signal conditioning task */
+		Semaphore_pend(g_filtered_ready_sem, BIOS_WAIT_FOREVER);
+
+		/* Skip processing until we have enough samples */
+		if (g_filtered_index < SAMPLES_NEEDED)
+		{
+			continue;
+		}
+
+		/* read latest filtered sample */
+		float filtered_sample = buffer_read(g_ecg_filtered_buffer, g_squared_index, BUFFER_SIZE);
+
+		/* step 1: derivative filter */
+		float derivative_output = derivative_filter(g_ecg_filtered_buffer, g_derivative_index, filtered_sample);
+		buffer_write(g_derivative_buffer, &g_derivative_index, derivative_output, BUFFER_SIZE);
+		Log_info1("Derivative output: %f", (IArg)(derivative_output * 1000));
+
+		/* step 2: squaring operation */
+		float squared_output = square_signal(derivative_output);
+		buffer_write(g_squared_buffer, &g_squared_index, squared_output, BUFFER_SIZE);
+		Log_info1("Squared output: %f", (IArg)(squared_output * 1000));
+
+		/* step 3: moving window integration */
+		float mwi_output = moving_window_integrate(g_mwi_buffer, &g_mwi_index, squared_output);
+		buffer_write(g_mwi_output, &g_mwi_output_index, mwi_output, BUFFER_SIZE);
+		Log_info1("MWI output: %f", (IArg)(mwi_output * 1000));
+
+		/* step 4: adaptive peak detection */
+		if (detect_peaks(&g_qrs_params, mwi_output))
+		{
+			size_t rr_interval = g_qrs_params.rr_interval;
+			float heart_rate = (60.0f * SAMPLE_FREQ) / rr_interval;
+
+			Log_info2("QRS Detected! RR interval: %d ms, Heart Rate: %d BPM",
+					(IArg)((rr_interval * 1000) / SAMPLE_FREQ),
+					(IArg)heart_rate);
+		}
+	}
 }
 
 /******************************************************************************
