@@ -1,17 +1,61 @@
 #include "ecg_filters.h"
 
 #include "config/config.h"
+#include "buffers/buffer.h"
 #include "Baseline_Wander_Coeffs.h"
 #include "LowFreq_Noise_Coeffs.h"
 #include "Anti_Aliasing_Coeffs.h"
 #include "QRS_Enhance_Coeffs.h"
 
-float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2], size_t num_stages, float sample)
+#define DERIVATIVE_POINTS   4       /* number of derivative points */
+
+/* IIR filter state buffers */
+static float d_baseline[BASELINE_FILTER_STAGES][2] = {{0.0f}};
+static float d_alias[ALIAS_FILTER_STAGES][2] = {{0.0f}};
+static float d_qrs[QRS_FILTER_STAGES][2] = {{0.0f}};
+
+float derivative_filter(uint16_t curr_index, float sample)
+{
+  /* signal history buffer */
+  static float x[BUFFER_SIZE] = {0};
+
+  /* store new sample */
+  x[curr_index] = sample;
+  
+    /* wait until we have enough samples */
+  if (curr_index < DERIVATIVE_POINTS) {
+    return 0.0f;
+  }
+
+  /* calculate indices with proper wrapping */
+  uint16_t i0 = (curr_index + BUFFER_SIZE - 4) % BUFFER_SIZE;   /* n-4 sample */
+  uint16_t i1 = (curr_index + BUFFER_SIZE - 3) % BUFFER_SIZE;   /* n-3 sample */
+  uint16_t i3 = (curr_index + BUFFER_SIZE - 1) % BUFFER_SIZE;   /* n-1 sample */
+  uint16_t i4 = curr_index;                                     /* current sample */
+
+  /* apply 5-point derivative formula: y(n) = (-x(n-4) - 2x(n-3) + 2x(n-1) + x(n))/8 */
+  return (-x[i0] - 2.0f * x[i1] + 2.0f * x[i3] + x[i4]) / 8.0f;
+}
+
+float normalize_signal(float sample, float *min, float *max) {
+  /* update min/max adaptively */
+  if (sample > *max) *max = sample;
+  if (sample < *min) *min = sample;
+  
+  /* avoid division by zero */
+  float range = *max - *min;
+  if (range == 0) return 0;
+  
+  /* normalize to -1 to 1 range */
+  return 2.0f * ((sample - *min) / range) - 1.0f;
+}
+
+float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2], uint16_t num_stages, float sample)
 {
 	/* init variables at the start of the fxn */
 	float output_y = sample;
 	float intermediate = 0.0f;
-	int curr_stage = 1;
+	uint16_t curr_stage = 1;
 
 	/* process only relevent stages in cascade */
 	for (; curr_stage < num_stages - 1; curr_stage +=2)
@@ -38,28 +82,15 @@ float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2],
 
 float baseline_wander_filter(float sample)
 {
-	static float d_baseline[BASELINE_FILTER_STAGES][2] = { { 0.0f } };
-
 	return iir_biquad_filter(baseline_num, baseline_den, d_baseline, BASELINE_FILTER_STAGES, sample);
-}
-
-float lowfreq_noise_filter(float sample)
-{
-	static float d_lowfreq[BASELINE_FILTER_STAGES][2] = { { 0.0f } };
-
-	return iir_biquad_filter(lowfreq_num, lowfreq_den, d_lowfreq, LOWFREQ_FILTER_STAGES, sample);
 }
 
 float anti_aliasing_filter(float sample)
 {
-	static float d_alias[ALIAS_FILTER_STAGES][2] = { { 0.0f } };
-
 	return iir_biquad_filter(alias_num, alias_den, d_alias, ALIAS_FILTER_STAGES, sample);
 }
 
 float qrs_enhance_filter(float sample)
 {
-  static float d_qrs[QRS_FILTER_STAGES][2] = { { 0.0f } };
-
   return iir_biquad_filter(qrs_enhance_num, qrs_enhance_den, d_qrs, QRS_FILTER_STAGES, sample);
 }

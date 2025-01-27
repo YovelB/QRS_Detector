@@ -8,7 +8,8 @@
  * - Type: Chebshev Type II High-Pass
  * - Order: 2th order
  * - Sampling Frequency (fs): 80 Hz
- * - Frequency Stop (fstop): 1.5 Hz
+ * - Frequency Stop (fstop): 1.2 Hz
+ * - Maximum Passband Ripple (apass): 10 db
  * - Structure: Direct-Form II, Second-Order Sections
  * - Number of Sections  : 2
  * - Stable              : Yes
@@ -22,10 +23,10 @@
 const int lowfreq_num_order[LOWFREQ_FILTER_STAGES] = { 1,3,1 };
 const float lowfreq_num[LOWFREQ_FILTER_STAGES][3] = {
   {
-      0.838760674,              0,              0 
+     0.9626280069,              0,              0 
   },
   {
-                1,   -1.993056417,              1 
+                1,   -1.996266842,              1 
   },
   {
                 1,              0,              0 
@@ -37,7 +38,7 @@ const float lowfreq_den[LOWFREQ_FILTER_STAGES][3] = {
                 1,              0,              0 
   },
   {
-                1,   -1.645489335,   0.7037293315 
+                1,   -1.920264125,    0.926654458 
   },
   {
                 1,              0,              0 

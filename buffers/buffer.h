@@ -1,7 +1,7 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#include <stddef.h>
+#include <stdint.h>
 
 /*!
  * @brief Write to circular buffer
@@ -14,7 +14,7 @@
  * @param value - value to write into the buffer
  * @param size - size of the buffer
  */
-void buffer_write(volatile float *buffer, volatile size_t* index, float value, size_t size);
+void buffer_write(volatile float *buffer, volatile uint16_t* index, float value, uint16_t size);
 
 /*!
  * @brief Read from circular buffer
@@ -28,6 +28,6 @@ void buffer_write(volatile float *buffer, volatile size_t* index, float value, s
  * @param size - size of the buffer
  * @return float - value read from the buffer at the specified position
  */
-float buffer_read(volatile float *buffer, size_t index, size_t size);
+float buffer_read(volatile float *buffer, uint16_t index, uint16_t size);
 
 #endif // BUFFER_H
