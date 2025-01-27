@@ -1,27 +1,8 @@
 #ifndef QRS_DETECT_H
 #define QRS_DETECT_H
 
-#include <stddef.h>
+#include <stdint.h>
 #include "config/config.h"
-
-/*!
- * @brief Derivative filter for QRS detection
- *
- * implements 4-point derivative filter to emphasize QRS complex slopes:
- * y[n] = (1/4) * (-x[n-1] - x[n-1] + x[n] + x[n+1])
- *
- * This filter:
- * - approximates first derivative (rate of change)
- * - suppresses low frequencies (baseline drift)
- * - emphasizes steep slopes of QRS complexes
- * - attenuates gradual P and T waves
- *
- * @param sample - current input sample
- * @param buffer - circular buffer containing samples
- * @param index  - current buffer index
- * @return derivative output
- */
-float derivative_filter(volatile float *buffer, size_t index, float sample);
 
 /*!
  * @brief Square the signal samples
@@ -57,12 +38,10 @@ float square_signal(float sample);
  * - helps distinguish T waves from QRS complexes
  * - integrates over appropriate period for 80Hz QRS detection
  *
- * @param mwi_buffer - buffer for MWI samples (size = 12)
- * @param mwi_index  - current MWI buffer index
  * @param sample     - current squared sample
  * @return           - integrated output (averaged over window)
  */
-float moving_window_integrate(float *mwi_buffer, size_t *mwi_index, float sample);
+float moving_window_integrate(uint16_t curr_index, float sample);
 
 /*!
  * @brief Peak Detection with Adaptive Thresholding for 80Hz ECG
@@ -86,6 +65,6 @@ float moving_window_integrate(float *mwi_buffer, size_t *mwi_index, float sample
  * @param sample     - current integrated sample value
  * @return           - 1 if QRS detected, 0 otherwise
  */
-int detect_peaks(qrs_params_t *qrs_params, float sample);
+uint16_t detect_peaks(qrs_params_t *qrs_params, float sample);
 
 #endif /* QRS_DETECT_H */
