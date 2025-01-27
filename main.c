@@ -23,7 +23,6 @@
 #include "buffers/buffer.h"
 #include "filters/ecg_filters.h"
 #include "feature_extract/qrs_detect.h"
-/*#include "feature_extract/ecg_detector.h"*/
 #include "feature_extract/pqrst_detector.h"
 
 /******************************************************************************
@@ -59,20 +58,18 @@ qrs_params_t g_qrs_params = {
 /*!
  * @brief Timer64P0 (Timer ID 0) ISR for ECG sampling
  *
- * This ISR is triggred by Timer64P0 (32-bit mode) at 80 sampling freq.
+ * this ISR is triggred by Timer64P0 (32-bit mode) at 80 sampling freq.
  * the timer is configured to generate interrupts every 12.5ms.
- * Each interrupt triggers sample which is stored in a circular buffer.
+ * each interrupt triggers sample which is stored in a circular buffer.
  *
  * Timer configuration:
  * - Hardware: Timer64P0 (Timer A - ID 0)
  * - Mode: 32-bit unchained (chained - can be combined with timer B - ID 1 to 64 bit timer)
  * - Start Mode: starts automatically
- *
  * - Run Mode: periodic and continuous
  *
  * @note this function runs in interrupt context and should be kept as short as possible to prevent timing issues.
  */
-
 Void ECG_Timer_ISR(Void)
 {
 	/* read the new sample from the QRS_IN data */
@@ -148,10 +145,13 @@ Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
 
 Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
 {
+  wave_points_t wave_points = {0};
+  wave_intervals_t wave_intervals = {0};
+  uint8_t quality = 0;
+  uint16_t curr_wave = 0;
 	/* execute feature_extract every new sample */
 	while (1)
 	{
-
 		/* wait for filtered sample from signal conditioning task */
 		Semaphore_pend(g_filtered_ready_sem, BIOS_WAIT_FOREVER);
 
@@ -159,56 +159,50 @@ Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
 		float filtered_sample = buffer_read(g_ecg_filtered_buffer, g_squared_index, BUFFER_SIZE*2);
 
 		/* when we have enough samples for one wave cycle */
-    if (g_temp_index == BUFFER_SIZE - 1)
+    if ((g_filtered_index + 1) % BUFFER_SIZE == 0)
 		{
+      uint16_t start = curr_wave * BUFFER_SIZE;
+      uint16_t stop = start + BUFFER_SIZE;
+
 			/* perform PQRST detection */
-			wave_points_t wave_points = ecg_detect_pqrst(g_temp_filtered_buffer, BUFFER_SIZE);
+			ecg_detect_pqrst(g_ecg_filtered_buffer, start, stop, &wave_points);
 
 			/* calculate intervals */
-			wave_intervals_t intervals = ecg_calculate_intervals(&wave_points);
+			ecg_calculate_intervals(&wave_points, &wave_intervals);
 
 			/* validate detection */
-			uint8_t quality = ecg_validate_detection(&wave_points, &intervals);
+			quality = ecg_validate_detection(&wave_points, &wave_intervals);
 
 			/* if detection quality is good, log the results */
-      if (quality >= 20)
+      if (quality >= 80)
       {
+        /* print curr wave */
+        System_printf("\nWave %d:\n", curr_wave + 1);
+
         /* print P Q R S T index and amplitude */
-        System_printf("P-wave: idx=%d, amp=%f\n", wave_points.p_idx, wave_points.p_val);
-        System_printf("Q-wave: idx=%d, amp=%f\n", wave_points.q_idx, wave_points.q_val);
-        System_printf("R-wave: idx=%d, amp=%f\n", wave_points.r_idx, wave_points.r_val);
-        System_printf("S-wave: idx=%d, amp=%f\n", wave_points.s_idx, wave_points.s_val);
-        System_printf("T-wave: idx=%d, amp=%f\n", wave_points.t_idx, wave_points.t_val);
+        System_printf("P-wave: idx=%d, amp=%d mV\n", wave_points.p_idx, (int) (wave_points.p_val * 1000));
+        System_printf("Q-wave: idx=%d, amp=%d mV\n", wave_points.q_idx, (int) (wave_points.q_val * 1000));
+        System_printf("R-wave: idx=%d, amp=%d mV\n", wave_points.r_idx, (int) (wave_points.r_val * 1000));
+        System_printf("S-wave: idx=%d, amp=%d mV\n", wave_points.s_idx, (int) (wave_points.s_val * 1000));
+        System_printf("T-wave: idx=%d, amp=%d mV\n", wave_points.t_idx, (int) (wave_points.t_val * 1000));
+        System_printf("P-previous-wave: idx=%d, R-previous-wave: idx=%d\n", wave_points.prev_p_idx,  wave_points.prev_r_idx);
 
         /* print intervals */
-        System_printf("Intervals: PR=%d ms, QRS=%d ms\n", intervals.pr_interval, intervals.qrs_duration);
-        System_printf("Intervals: QT=%d ms, RR=%d ms\n", intervals.qt_interval, intervals.rr_interval);
+        System_printf("Intervals: PR=%d ms, QRS=%d ms, QT=%d ms\n", (int) wave_intervals.pr_interval, (int) wave_intervals.qrs_duration, (int) wave_intervals.qt_interval);
+        System_printf("Intervals: RR=%d ms, PP=%d ms\n", (int) wave_intervals.rr_interval, (int) wave_intervals.pp_interval);
 
         /* print quality and heart rate */
         System_printf("Quality=%d, \n", quality);
         System_flush();
       }
+      /* update curr_wave */
+      curr_wave++;
+      if (curr_wave * BUFFER_SIZE >= BUFFER_SIZE * 2) {
+          curr_wave = 0;
+          wave_points.prev_p_idx = 0;
+          wave_points.prev_r_idx = 0;
+      }
 		}
-
-
-		/*/* step 2: squaring operation */
-		/*float squared_output = square_signal(filtered_sample);*/
-		/*buffer_write(g_squared_buffer, &g_squared_index, squared_output, BUFFER_SIZE*2);*/
-		/**/
-		/*/* step 3: moving window integration */
-		/*float mwi_output = moving_window_integrate(g_mwi_output_index, squared_output);*/
-		/*buffer_write(g_mwi_output, &g_mwi_output_index, mwi_output, BUFFER_SIZE*2);*/
-		/**/
-		/*/* step 4: adaptive peak detection */
-		/*if (detect_peaks(&g_qrs_params, mwi_output))*/
-		/*{*/
-		/*	size_t rr_interval = g_qrs_params.rr_interval;*/
-		/*	float heart_rate = (60.0f * SAMPLE_FREQ) / rr_interval;*/
-		/**/
-		/*	Log_info2("QRS: RR=%d ms, HR=%d BPM", ((rr_interval * 1000) / SAMPLE_FREQ), (IArg)heart_rate);*/
-		/**/
-		/*	Log_info2("Peak=%d, LastQRS=%d ms", (IArg)(g_qrs_params.peak_value * 1000.0f), g_qrs_params.last_qrs_index);*/
-		/*}*/
 	}
 }
 

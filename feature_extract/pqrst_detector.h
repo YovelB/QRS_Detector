@@ -6,16 +6,18 @@
 
 /* ECG morphology points structure */
 typedef struct {
-  uint16_t p_idx;   /* P wave position index */
-  float p_val;      /* P wave amplitude */
-  uint16_t q_idx;   /* Q wave position index */
-  float q_val;      /* Q wave amplitude */
-  uint16_t r_idx;   /* R wave position index */
-  float r_val;      /* R wave amplitude */
-  uint16_t s_idx;   /* S wave position index */
-  float s_val;      /* S wave amplitude */
-  uint16_t t_idx;   /* T wave position index */
-  float t_val;      /* T wave amplitude */
+  uint16_t p_idx;       /* P wave position index */
+  float p_val;          /* P wave amplitude */
+  uint16_t q_idx;       /* Q wave position index */
+  float q_val;          /* Q wave amplitude */
+  uint16_t r_idx;       /* R wave position index */
+  float r_val;          /* R wave amplitude */
+  uint16_t s_idx;       /* S wave position index */
+  float s_val;          /* S wave amplitude */
+  uint16_t t_idx;       /* T wave position index */
+  float t_val;          /* T wave amplitude */
+  uint16_t prev_p_idx;  /* previous P wave position index */
+  uint16_t prev_r_idx;  /* previous R wave position index */
 } wave_points_t;
 
 /* ECG temporal measurements structure */
@@ -40,7 +42,7 @@ typedef struct {
  * @param size   - size of the signal buffer
  * @return wave_points_t Structure containing wave locations and amplitudes
  */
-wave_points_t ecg_detect_pqrst(volatile const float* buffer, uint16_t size);
+void ecg_detect_pqrst(volatile const float* buffer, uint16_t start, uint16_t end, wave_points_t* points);
 
 /*!
  * @brief Calculate ECG Wave Intervals
@@ -54,7 +56,7 @@ wave_points_t ecg_detect_pqrst(volatile const float* buffer, uint16_t size);
  * @param points            - pointer to detected wave points structure
  * @return wave_intervals_t - structure containing calculated intervals in milliseconds
  */
-wave_intervals_t ecg_calculate_intervals(const wave_points_t *points);
+void ecg_calculate_intervals(const wave_points_t *points, wave_intervals_t* intervals);
 
 /*!
  * @brief Validate ECG Wave Detection
@@ -65,6 +67,6 @@ wave_intervals_t ecg_calculate_intervals(const wave_points_t *points);
  * @param intervals - calculated intervals
  * @return uint8_t  - quality score (0-100) or error code
  */
-uint8_t ecg_validatedetection(const wave_points_t *points, const wave_intervals_t *intervals);
+uint8_t ecg_validate_detection(const wave_points_t *points, const wave_intervals_t *intervals);
 
 #endif /* PQRST_DETECTOR_H */
