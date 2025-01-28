@@ -7,9 +7,13 @@
  * DEFINES & MACROS
  *****************************************************************************/
 
-#define SAMPLE_FREQ 80  /* sampling frequency in Hz */
-#define BUFFER_SIZE 85  /* number of samples in the input signal */
-#define DC_OFFSET 0.15f /* DC offset added to center filtered signal */
+#define SAMPLE_FREQ 80            /* sampling frequency in Hz */
+#define BUFFER_SIZE 85            /* number of samples in the input signal */
+#define EXTENDED_BUFFER_SIZE 170  /* number of samples in the input signal */
+#define DC_OFFSET 0.15f           /* DC offset added to center filtered signal */
+
+#define ECG_SIGNAL_MAX  10.0f   /* maximum expected ECG signal value in mV */
+#define ECG_SIGNAL_MIN -10.0f   /* minimum expected ECG signal value in mV */
 
 /* helper macros for bounds checking */
 #define MAX(a,b) ((a) > (b) ? (a) : (b))

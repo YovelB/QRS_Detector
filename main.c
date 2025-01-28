@@ -2,9 +2,6 @@
  * INCLUDES
  *****************************************************************************/
 
-/* standard C headers */
-#include <float.h>  /* for FLT_MAX and FLT_MIN */
-
 /* XDCtools header files */
 #include <xdc/std.h>
 #include <xdc/cfg/global.h>
@@ -28,14 +25,14 @@
  *****************************************************************************/
 
 /* needs to be volatile - accessed by ISR and task or two tasks concurrently */
-volatile float g_ecg_buffer[BUFFER_SIZE];               /* circular buffer for storing ECG samples */
-volatile uint16_t g_buffer_index = 0;                   /* current index pos in buffer */
+volatile float g_input_buffer[BUFFER_SIZE];               /* circular buffer for storing ECG samples */
+volatile uint16_t g_input_index = 0;                   /* current index pos in buffer */
 
-volatile float g_temp_filtered_buffer[BUFFER_SIZE];     /* buffer for fitlered ECG samples */
-volatile uint16_t g_temp_index = 0;                     /* processing index for filtered buffer */
+volatile float g_filtered_buffer[BUFFER_SIZE];          /* buffer for fitlered ECG samples */
+volatile uint16_t g_filtered_index = 0;                 /* processing index for filtered buffer */
 
-volatile float g_ecg_filtered_buffer[BUFFER_SIZE * 2];
-volatile uint16_t g_filtered_index = 0;
+volatile float g_extended_filtered_buffer[EXTENDED_BUFFER_SIZE];
+volatile uint16_t g_extended_index = 0;
 
 /******************************************************************************
  * TIMER FUNCTION IMPLEMENTATION
@@ -45,7 +42,7 @@ volatile uint16_t g_filtered_index = 0;
  * @brief Timer64P0 (Timer ID 0) ISR for ECG sampling
  *
  * this ISR is triggred by Timer64P0 (32-bit mode) at 80 sampling frequency so generate interrupts every 12.5ms
- * each interrupt triggered stores a the input sample from QRS_Dat_in to g_ecg_buffer 
+ * each interrupt triggered stores a the input sample from QRS_Dat_in to g_input_buffer 
  *
  * timer configuration:
  * - Hardware: Timer64P0 (Timer A - ID 0)
@@ -58,10 +55,10 @@ volatile uint16_t g_filtered_index = 0;
 Void ECG_Timer_ISR(Void)
 {
 	/* read the new sample from the QRS_IN data */
-	float sample = buffer_read(QRS_IN, g_buffer_index, QRS_BUFFER_SIZE);
+	float sample = buffer_read(QRS_IN, g_input_index, QRS_BUFFER_SIZE);
 
 	/* write into the cyclic buffer */
-	buffer_write(g_ecg_buffer, &g_buffer_index, sample, BUFFER_SIZE);
+	buffer_write(g_input_buffer, &g_input_index, sample, BUFFER_SIZE);
 
 	/* signal that new sample is ready */
 	Semaphore_post(g_sample_ready_sem);
@@ -88,18 +85,18 @@ Void ECG_Timer_ISR(Void)
  */
 Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
 {
-  static float signal_min = FLT_MAX;  /* tracks min signal amplitude - starts high */
-  static float signal_max = -FLT_MAX; /* tracks max signal amplitude - starts low */
+  static float signal_min = ECG_SIGNAL_MAX;   /* tracks min signal amplitude - starts high */
+  static float signal_max = ECG_SIGNAL_MIN;   /* tracks max signal amplitude - starts low */
 
 	while (1)
 	{
 		/* wait for signal that new sample is ready */
 		Semaphore_pend(g_sample_ready_sem, BIOS_WAIT_FOREVER);
 
-		float input_sample = buffer_read(g_ecg_buffer, g_temp_index, BUFFER_SIZE);
+		float input_sample = buffer_read(g_input_buffer, g_filtered_index, BUFFER_SIZE);
 
 		/* apply derivative filter */
-		float filtered_sample = derivative_filter(g_temp_index, input_sample);
+		float filtered_sample = derivative_filter(g_filtered_index, input_sample);
 
 		/* apply the Anti-Aliasing filter on the sample */
 		filtered_sample = anti_aliasing_filter(filtered_sample);
@@ -108,8 +105,8 @@ Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
     filtered_sample = normalize_signal(filtered_sample, &signal_min, &signal_max) + DC_OFFSET;
 
 		/* write filtered sample to the buffer */
-		buffer_write(g_temp_filtered_buffer, &g_temp_index, filtered_sample, BUFFER_SIZE);
-		buffer_write(g_ecg_filtered_buffer, &g_filtered_index, filtered_sample, BUFFER_SIZE * 2);
+		buffer_write(g_filtered_buffer, &g_filtered_index, filtered_sample, BUFFER_SIZE);
+		buffer_write(g_extended_filtered_buffer, &g_extended_index, filtered_sample, EXTENDED_BUFFER_SIZE);
 
     /* signal only when a complete wave (BUFFER_SIZE samples) is processed */
     if ((g_filtered_index + 1) % BUFFER_SIZE == 0) {
@@ -153,7 +150,7 @@ Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
     uint16_t stop = start + BUFFER_SIZE;      /* stop index + 1 (size) of the current wave */
 
     /* perform PQRST detection */
-    ecg_detect_pqrst(g_ecg_filtered_buffer, start, stop, &wave_points);
+    ecg_detect_pqrst(g_filtered_buffer, start, stop, &wave_points);
 
     /* calculate intervals */
     ecg_calculate_intervals(&wave_points, &wave_intervals);
@@ -185,9 +182,9 @@ Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
       System_flush();
     }
 
-    /* update curr_wave */
+    /* update curr_wave and reset points and intervals */
     curr_wave++;
-    if (curr_wave * BUFFER_SIZE >= BUFFER_SIZE * 2) {
+    if (curr_wave * BUFFER_SIZE >= EXTENDED_BUFFER_SIZE) {
       curr_wave = 0;
       ecg_init(&wave_points, &wave_intervals);
     }
