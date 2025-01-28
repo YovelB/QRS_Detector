@@ -1,16 +1,23 @@
 ## Description
-A real-time QRS detector for electrocardiogram (ECG/EKG) 
-using digital signal processing techniques, implemented on LCDKMAPL138 development kit.
-The system performs continuous sampling of ECG signals at 80 KHz and utilizes digital filtering and
-detection algorithms to identify QRS complexes in cardiac waveforms.
+Real-time QRS detection system for ECG/EKG signals using Pan-Tompkins algorithm, implemented on LCDKMAPL138. 
+The system processes ECG data (85 samples) to detect and analyze PQRST wave components through digital signal processing techniques.
 
 ## Features
-- 80 KHz sampling frequency
-- Real-time signal processing
-- IIR low-pass filtering (1KHz - 12KHz)
-- Interrupt-driven architecture 
-- Circular buffer implementation
-- TI-RTOS based scheduling
+- Pan-Tompkins QRS detection algorithm
+  - bandpass filtering (5-15 Hz)
+  - derivative filtering
+  - squaring and moving window integration
+- PQRST wave analysis
+  - peak detection (P, Q, R, S, T waves)
+  - amplitude measurement
+  - cardiac interval calculation
+- Real-time processing
+  - 80 Hz sampling frequency
+  - circular buffer implementation
+  - interrupt-driven architecture
+- System Infrastructure
+  - TI-RTOS based scheduling
+  - IIR low-pass filtering
 
 ## Requirements
 - LCDKMAPL138 Development Kit

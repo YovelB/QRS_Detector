@@ -2,17 +2,12 @@
 
 #include "config/config.h"
 #include "buffers/buffer.h"
-#include "Baseline_Wander_Coeffs.h"
-#include "LowFreq_Noise_Coeffs.h"
 #include "Anti_Aliasing_Coeffs.h"
-#include "QRS_Enhance_Coeffs.h"
 
 #define DERIVATIVE_POINTS   4       /* number of derivative points */
 
 /* IIR filter state buffers */
-static float d_baseline[BASELINE_FILTER_STAGES][2] = {{0.0f}};
 static float d_alias[ALIAS_FILTER_STAGES][2] = {{0.0f}};
-static float d_qrs[QRS_FILTER_STAGES][2] = {{0.0f}};
 
 float derivative_filter(uint16_t curr_index, float sample)
 {
@@ -37,7 +32,7 @@ float derivative_filter(uint16_t curr_index, float sample)
   return (-x[i0] - 2.0f * x[i1] + 2.0f * x[i3] + x[i4]) / 8.0f;
 }
 
-float normalize_signal(float sample, float *min, float *max) {
+float normalize_signal(float sample, float* min, float* max) {
   /* update min/max adaptively */
   if (sample > *max) *max = sample;
   if (sample < *min) *min = sample;
@@ -52,7 +47,6 @@ float normalize_signal(float sample, float *min, float *max) {
 
 float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2], uint16_t num_stages, float sample)
 {
-	/* init variables at the start of the fxn */
 	float output_y = sample;
 	float intermediate = 0.0f;
 	uint16_t curr_stage = 1;
@@ -76,21 +70,10 @@ float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2],
   /* apply gain from previous stage (odd-numbered stages) */
   output_y *= b[curr_stage - 1][0];
 
-	/* return filtered output */
 	return output_y;
-}
-
-float baseline_wander_filter(float sample)
-{
-	return iir_biquad_filter(baseline_num, baseline_den, d_baseline, BASELINE_FILTER_STAGES, sample);
 }
 
 float anti_aliasing_filter(float sample)
 {
 	return iir_biquad_filter(alias_num, alias_den, d_alias, ALIAS_FILTER_STAGES, sample);
-}
-
-float qrs_enhance_filter(float sample)
-{
-  return iir_biquad_filter(qrs_enhance_num, qrs_enhance_den, d_qrs, QRS_FILTER_STAGES, sample);
 }

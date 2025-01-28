@@ -8,7 +8,7 @@
  * - Type: Butterworth Low-Pass
  * - Order: 2nd order
  * - Sampling Frequency (fs): 80 Hz
- * - Cutoff Frequency (fc): 30 Hz
+ * - Cutoff Frequency (fc): 6 Hz
  * - Filter Structure    : Direct-Form II, Second-Order Sections
  * - Number of Sections  : 2
  * - Stable              : Yes

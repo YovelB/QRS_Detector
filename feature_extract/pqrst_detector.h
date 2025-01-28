@@ -30,6 +30,14 @@ typedef struct {
 } wave_intervals_t;
 
 /*!
+ * @brief init ECG wave detection structures
+ *
+ * @param points    - pointer to wave points structure to initialize
+ * @param intervals - pointer to wave intervals structure to initialize
+ */
+void ecg_init(wave_points_t* points, wave_intervals_t* intervals);
+
+/*!
  * @brief Detect PQRST Wave Components
  *
  * analyzes ECG signal buffer to detect characteristic waves:
@@ -68,5 +76,16 @@ void ecg_calculate_intervals(const wave_points_t *points, wave_intervals_t* inte
  * @return uint8_t  - quality score (0-100) or error code
  */
 uint8_t ecg_validate_detection(const wave_points_t *points, const wave_intervals_t *intervals);
+
+/*!
+ * @brief calculate Heart Rate from ECG intervals
+ *
+ * calculates heart rate in beats per minute (BPM) using RR intervals
+ * If RR interval is not available, return 0.0f
+ *
+ * @param intervals - pointer to wave intervals structure
+ * @return float    - heart rate in beats per minute (BPM)
+ */
+float ecg_calculate_heart_rate(const wave_intervals_t *intervals);
 
 #endif /* PQRST_DETECTOR_H */
