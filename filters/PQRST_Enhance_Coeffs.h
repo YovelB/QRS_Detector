@@ -1,5 +1,5 @@
-#ifndef Anti_Aliasing_Coeffs_H_
-#define Anti_Aliasing_Coeffs_H_
+#ifndef PQRST_Enhance_Coeffs_H
+#define PQRST_Enhance_Coeffs_H
 
 /*
  * Butterworth Low-Pass IIR Filter Coefficients
@@ -17,11 +17,11 @@
  * Generated using MATLAB(R) 24.2 and Signal Processing Toolbox 24.2.
  */
 
-#define ALIAS_FILTER_STAGES 3
+#define ENHANCE_FILTER_STAGES 3
 
 /* numerator coefficients (b) */ 
-const int alias_num_order[ALIAS_FILTER_STAGES] = { 1,3,1 };
-const float alias_num[ALIAS_FILTER_STAGES][3] = {
+const int pqrst_enhance_num_order[ENHANCE_FILTER_STAGES] = { 1,3,1 };
+const float pqrst_enhance_num[ENHANCE_FILTER_STAGES][3] = {
   {
     0.02482790686,              0,              0 
   },
@@ -34,8 +34,8 @@ const float alias_num[ALIAS_FILTER_STAGES][3] = {
 };
 
 /* denominator coefficients (a) */
-const int alias_den_order[ALIAS_FILTER_STAGES] = { 1,3,1 };
-const float alias_den[ALIAS_FILTER_STAGES][3] = {
+const int pqrst_enhance_den_order[ENHANCE_FILTER_STAGES] = { 1,3,1 };
+const float pqrst_enhance_den[ENHANCE_FILTER_STAGES][3] = {
   {
                 1,              0,              0 
   },
@@ -47,4 +47,4 @@ const float alias_den[ALIAS_FILTER_STAGES][3] = {
   }
 };
 
-#endif /* Anti_Aliasing_Coeffs_H_ */
+#endif /* PQRST_Enhance_Coeffs_H */

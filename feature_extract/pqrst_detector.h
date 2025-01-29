@@ -69,7 +69,7 @@ void ecg_calculate_intervals(const wave_points_t *points, wave_intervals_t* inte
 /*!
  * @brief Validate ECG Wave Detection
  *
- * Performs quality checks on detected waves
+ * performs quality checks on detected waves
  *
  * @param points    - detected PQRST points
  * @param intervals - calculated intervals
@@ -81,7 +81,7 @@ uint8_t ecg_validate_detection(const wave_points_t *points, const wave_intervals
  * @brief calculate Heart Rate from ECG intervals
  *
  * calculates heart rate in beats per minute (BPM) using RR intervals
- * If RR interval is not available, return 0.0f
+ * if RR interval is not available, return 0.0f
  *
  * @param intervals - pointer to wave intervals structure
  * @return float    - heart rate in beats per minute (BPM)

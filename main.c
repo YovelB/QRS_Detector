@@ -25,14 +25,14 @@
  *****************************************************************************/
 
 /* needs to be volatile - accessed by ISR and task or two tasks concurrently */
-volatile float g_input_buffer[BUFFER_SIZE];               /* circular buffer for storing ECG samples */
-volatile uint16_t g_input_index = 0;                   /* current index pos in buffer */
+volatile float g_input_buffer[BUFFER_SIZE];                       /* circular input buffer for storing ECG samples */
+volatile uint16_t g_input_index = 0;                              /* index pos for input buffer */
 
-volatile float g_filtered_buffer[BUFFER_SIZE];          /* buffer for fitlered ECG samples */
-volatile uint16_t g_filtered_index = 0;                 /* processing index for filtered buffer */
+volatile float g_filtered_buffer[BUFFER_SIZE];                    /* buffer for fitlered ECG samples */
+volatile uint16_t g_filtered_index = 0;                           /* index for filtered buffer */
 
-volatile float g_extended_filtered_buffer[EXTENDED_BUFFER_SIZE];
-volatile uint16_t g_extended_index = 0;
+volatile float g_extended_filtered_buffer[EXTENDED_BUFFER_SIZE];  /* exntended buffer for multiple waves */
+volatile uint16_t g_extended_index = 0;                           /* index for exteneded filtered buffer */
 
 /******************************************************************************
  * TIMER FUNCTION IMPLEMENTATION
@@ -41,7 +41,7 @@ volatile uint16_t g_extended_index = 0;
 /*!
  * @brief Timer64P0 (Timer ID 0) ISR for ECG sampling
  *
- * this ISR is triggred by Timer64P0 (32-bit mode) at 80 sampling frequency so generate interrupts every 12.5ms
+ * this ISR is triggred by Timer64P0 (32-bit mode) at 80 sampling frequency so generate interrupt every 12.5ms
  * each interrupt triggered stores a the input sample from QRS_Dat_in to g_input_buffer 
  *
  * timer configuration:
@@ -99,7 +99,7 @@ Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
 		float filtered_sample = derivative_filter(g_filtered_index, input_sample);
 
 		/* apply the Anti-Aliasing filter on the sample */
-		filtered_sample = anti_aliasing_filter(filtered_sample);
+		filtered_sample = pqrst_enhance_filter(filtered_sample);
 
     /* normalize after filtering */
     filtered_sample = normalize_signal(filtered_sample, &signal_min, &signal_max) + DC_OFFSET;
@@ -109,7 +109,7 @@ Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
 		buffer_write(g_extended_filtered_buffer, &g_extended_index, filtered_sample, EXTENDED_BUFFER_SIZE);
 
     /* signal only when a complete wave (BUFFER_SIZE samples) is processed */
-    if ((g_filtered_index + 1) % BUFFER_SIZE == 0) {
+    if ((g_extended_index + 1) % BUFFER_SIZE == 0) {
       Semaphore_post(g_wave_ready_sem);
     }
 	}
@@ -118,9 +118,9 @@ Void ECG_PreprocessingTask(UArg arg0, UArg arg1)
 /*!
  * @brief ecg feature detection task
  *
- * detects key ecg wave components and measures their timing.
+ * enteres each fully filtered wave and detects key ecg wave components and measures their timing
  * processes blocks as each block is one wave of filtered ecg data 
- * to find p, q, r, s, and t waves and calculates important cardiac intervals.
+ * to find p, q, r, s, and t waves and calculates important cardiac intervals
  *
  * processing steps:
  * 1. collects each PQRST wave of the filtered samples
@@ -146,11 +146,11 @@ Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
 		Semaphore_pend(g_wave_ready_sem, BIOS_WAIT_FOREVER);
 
     /* when we have enough samples for one wave cycle */
-    uint16_t start = curr_wave * BUFFER_SIZE; /* start index of the current wave */
-    uint16_t stop = start + BUFFER_SIZE;      /* stop index + 1 (size) of the current wave */
+    uint32_t start = curr_wave * BUFFER_SIZE; /* start index of the current wave */
+    uint32_t stop = start + BUFFER_SIZE;      /* stop index + 1 (size) of the current wave */
 
     /* perform PQRST detection */
-    ecg_detect_pqrst(g_filtered_buffer, start, stop, &wave_points);
+    ecg_detect_pqrst(g_extended_filtered_buffer, start, stop, &wave_points);
 
     /* calculate intervals */
     ecg_calculate_intervals(&wave_points, &wave_intervals);
@@ -161,7 +161,7 @@ Void ECG_FeatureDetectTask(UArg arg0, UArg arg1)
     /* if detection quality is good, log the results */
     if (quality >= 80)
     {
-      /* print curr wave */
+      /* print current wave */
       System_printf("\nWave %d:\n", curr_wave + 1);
 
       /* print P Q R S T index and amplitude */

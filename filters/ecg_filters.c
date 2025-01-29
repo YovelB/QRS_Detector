@@ -2,12 +2,12 @@
 
 #include "config/config.h"
 #include "buffers/buffer.h"
-#include "Anti_Aliasing_Coeffs.h"
+#include "PQRST_Enhance_Coeffs.h"
 
 #define DERIVATIVE_POINTS   4       /* number of derivative points */
 
 /* IIR filter state buffers */
-static float d_alias[ALIAS_FILTER_STAGES][2] = {{0.0f}};
+static float d_enhance[ENHANCE_FILTER_STAGES][2] = {{0.0f}};
 
 float derivative_filter(uint16_t curr_index, float sample)
 {
@@ -73,7 +73,7 @@ float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2],
 	return output_y;
 }
 
-float anti_aliasing_filter(float sample)
+float pqrst_enhance_filter(float sample)
 {
-	return iir_biquad_filter(alias_num, alias_den, d_alias, ALIAS_FILTER_STAGES, sample);
+	return iir_biquad_filter(pqrst_enhance_num, pqrst_enhance_den, d_enhance, ENHANCE_FILTER_STAGES, sample);
 }

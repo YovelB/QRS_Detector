@@ -55,21 +55,21 @@ float normalize_signal(float sample, float *min, float *max);
 float iir_biquad_filter(const float (*a)[3], const float (*b)[3], float (*d)[2], uint16_t num_stages, float sample);
 
 /*!
- * @brief Anti-aliasing low-pass filter
+ * @brief PQRST Enhance low-pass filter
  *
- * this IIR filter removes high frequency components above Nyquist freq to
- * prevent aliasing effects. with a sampling rate of 80Hz, the Nyquist freq is
- * 40Hz, so any frequencies above this must be attenuated to prevent them from
- * appearing as false lower frequencies in the sampled signal.
- *
- * however, the data is ideal and does not come from adc. hence, doesn't contain any aliasing noise.
- * mostly this filter is used for enhancing Q and R waves and attenuating S and P and T.
+ * This IIR filter is designed with a cutoff frequency of 6Hz to:
+ * 1. smooth out high-frequency noise introduced by the derivative filter
+ * 2. enhance P, Q, and T wave components while reducing S wave amplitude
  *
  * - cutoff frequency: 6 Hz
+ *
+ * @note this filter was used after a derivative filter to amplify low frequency components
+ * like P,T and Q and attenuate high frequency components above 6Hz like the S wave
+ * However, it also does introduce and amplify noise at low frequency components
  *
  * @param sample - current input sample to filter
  * @return filtered output
  */
-float anti_aliasing_filter(float sample);
+float pqrst_enhance_filter(float sample);
 
 #endif /* ECG_FILTERS_H */
