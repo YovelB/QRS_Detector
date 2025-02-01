@@ -20,8 +20,7 @@ void buffer_write(volatile float *buffer, volatile uint16_t* index, float value,
  * @brief Read from circular buffer
  *
  * reads a value from the specified circular buffer at the given index position.
- * the index is wrapped around using the buffer size to maintain circular
- * behavior.
+ * the index is wrapped around using the buffer size to maintain circular behavior.
  *
  * @param buffer - pointer to the circular buffer
  * @param index - read position in the buffer

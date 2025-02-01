@@ -1,19 +1,8 @@
 #include "pqrst_detector.h"
 
-/* threshold levels for wave detection - based on percentage of R peak amplitude */
-#define R_PEAK_THRESHOLD    0.6f    /* r wave must exceed 60% of max amplitude */
-#define P_WAVE_THRESHOLD    0.15f   /* p wave typically 15% of r peak */
-#define T_WAVE_THRESHOLD    0.2f    /* t wave typically 20% of r peak */
-#define Q_WAVE_THRESHOLD    0.1f    /* q wave minimum -10% of r peak */
-#define S_WAVE_THRESHOLD    0.2f    /* s wave minimum -20% of r peak */
+#include "config/config.h"
 
-/* time windows for detecting wave components at 80hz sampling rate */
-#define PR_WINDOW_MAX       16      /* pr intterval max 200ms (16 samples) */
-#define QRS_WINDOW_MAX      8       /* qrs complex max 100ms (8 samples) */
-#define QT_WINDOW_MAX       32      /* qt interval max 400ms (32 samples) */
-#define RR_WINDOW_MIN       48      /* minimum 600ms between r peaks (48 samples) */
-#define RR_WINDOW_MAX       120     /* maximum 1500ms between r peaks (120 samples) */
-
+/* temp variables to store indices */
 static uint16_t g_r_idx = 0;
 static uint16_t g_q_idx = 0;
 static uint16_t g_s_idx = 0;
@@ -60,7 +49,7 @@ static uint16_t detect_r_peak(volatile const float* buffer, uint16_t start, uint
 
 static uint16_t detect_q_wave(volatile const float* buffer) {
   float min_val = 0.0f;
-  uint16_t idx = g_r_idx;
+  uint16_t idx = 0;
 
   /* search backwards from r peak within qrs window for local minimum */
   int i = g_r_idx;
@@ -75,7 +64,7 @@ static uint16_t detect_q_wave(volatile const float* buffer) {
 
 static uint16_t detect_s_wave(volatile const float* buffer, uint16_t end) {
   float min_val = 0.0f;
-  uint16_t idx = g_r_idx;
+  uint16_t idx = 0;
 
   /* search forwards from r peak within qrs window for local minimum */
   uint16_t i = g_r_idx;
@@ -92,10 +81,10 @@ static uint16_t detect_p_wave(volatile const float* buffer) {
   float max_val = 0.0f;
   uint16_t idx = 0;
 
-  /* search for local maximum before q wave within pr window */
-  uint16_t i = MAX(0, g_q_idx - PR_WINDOW_MAX);
-  for(; i < g_q_idx; i++) {
-    if(buffer[i] > max_val && buffer[i] > P_WAVE_THRESHOLD) {
+  /* search backwards from q peak within pr window for local maximum */
+  int i = g_q_idx;
+  for(; i >= MAX(0, g_q_idx - PR_WINDOW_MAX); i--) {
+    if(buffer[i] > max_val && buffer[i] > 0.0f) {
       max_val = buffer[i];
       idx = i;
     }
@@ -107,10 +96,10 @@ static uint16_t detect_t_wave(volatile const float* buffer, uint16_t end) {
   float max_val = 0.0f;
   uint16_t idx = 0;
 
-  /* search for local maximum after s wave within qt window */
+  /* search forwards from s peak within qt window for local maximum */
   uint16_t i = g_s_idx;
   for(; i < MIN(end, g_s_idx + QT_WINDOW_MAX); i++) {
-    if(buffer[i] > max_val && buffer[i] > T_WAVE_THRESHOLD) {
+    if(buffer[i] > max_val && buffer[i] > 0.0f) {
       max_val = buffer[i];
       idx = i;
     }
@@ -126,7 +115,7 @@ void ecg_detect_pqrst(volatile const float* buffer, uint16_t start, uint16_t end
   /* detect waves in sequence */
   g_r_idx = detect_r_peak(buffer, start, end);
   points->r_idx = g_r_idx;
-  points->r_val = buffer[g_r_idx] * 1000.0f; /* convert V to mV */
+  points->r_val = buffer[g_r_idx] * 1000.0f; /* V to mV */
 
   g_q_idx = detect_q_wave(buffer);
   points->q_idx = g_q_idx;
@@ -175,8 +164,8 @@ uint8_t ecg_validate_detection(const wave_points_t *points, const wave_intervals
     quality_score -= 20;
   }
 
-  /* check for physiologically valid qrs duration (80-120 ms) */
-  if (intervals->qrs_duration < 80.0f || intervals->qrs_duration > 120.0f)
+  /* check for physiologically valid qrs duration (70-110 ms) - assuming adult */
+  if (intervals->qrs_duration < 70.0f || intervals->qrs_duration > 110.0f)
   {
     quality_score -= 20;
   }

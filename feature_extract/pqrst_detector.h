@@ -2,9 +2,8 @@
 #define PQRST_DETECTOR_H
 
 #include <stdint.h>
-#include "config/config.h"
 
-/* ECG morphology points structure */
+/* ECG points structure */
 typedef struct {
   uint16_t p_idx;       /* P wave position index */
   float p_val;          /* P wave amplitude */
@@ -20,7 +19,7 @@ typedef struct {
   uint16_t prev_r_idx;  /* previous R wave position index */
 } wave_points_t;
 
-/* ECG temporal measurements structure */
+/* ECG measurements structure */
 typedef struct {
   float pr_interval;    /* PR interval duration (ms) */
   float qrs_duration;   /* QRS complex duration (ms) */
@@ -46,7 +45,7 @@ void ecg_init(wave_points_t* points, wave_intervals_t* intervals);
  * - P wave detection in PR interval window
  * - T wave detection in QT interval window
  *
- * @param buffer - pointer to ECG signal buffer
+ * @param buffer - pointer to filtered signal buffer
  * @param size   - size of the signal buffer
  * @return wave_points_t Structure containing wave locations and amplitudes
  */
@@ -62,29 +61,29 @@ void ecg_detect_pqrst(volatile const float* buffer, uint16_t start, uint16_t end
  * Note: RR and PP intervals require multiple beats to calculate
  *
  * @param points            - pointer to detected wave points structure
- * @return wave_intervals_t - structure containing calculated intervals in milliseconds
+ * @return wave_intervals_t structure containing calculated intervals in milliseconds
  */
 void ecg_calculate_intervals(const wave_points_t *points, wave_intervals_t* intervals);
 
 /*!
  * @brief Validate ECG Wave Detection
  *
- * performs quality checks on detected waves
+ * performs quality checks on detected waves based on score
  *
  * @param points    - detected PQRST points
  * @param intervals - calculated intervals
- * @return uint8_t  - quality score (0-100) or error code
+ * @return uint8_t quality score (0-100) or error code
  */
 uint8_t ecg_validate_detection(const wave_points_t *points, const wave_intervals_t *intervals);
 
 /*!
- * @brief calculate Heart Rate from ECG intervals
+ * @brief Calculate Heart Rate from ECG intervals
  *
  * calculates heart rate in beats per minute (BPM) using RR intervals
  * if RR interval is not available, return 0.0f
  *
  * @param intervals - pointer to wave intervals structure
- * @return float    - heart rate in beats per minute (BPM)
+ * @return float heart rate in beats per minute (BPM)
  */
 float ecg_calculate_heart_rate(const wave_intervals_t *intervals);
 
