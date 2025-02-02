@@ -4,8 +4,6 @@
 #include "buffers/buffer.h"
 #include "Baseline_Wander_Coeffs.h"
 
-#define DERIVATIVE_POINTS   4       /* number of derivative points */
-
 float iir_biquad_filter(const float (*b)[3], const float (*a)[3], float (*d)[2],
                         uint16_t num_stages, uint16_t curr_index, float sample)
 {

@@ -25,8 +25,6 @@
 #define PR_WINDOW_MAX       16      /* pr intterval max 200ms (16 samples) */
 #define QRS_WINDOW_MAX      8       /* qrs complex max 100ms (8 samples) */
 #define QT_WINDOW_MAX       32      /* qt interval max 400ms (32 samples) */
-#define RR_WINDOW_MIN       48      /* minimum 600ms between r peaks (48 samples) */
-#define RR_WINDOW_MAX       120     /* maximum 1500ms between r peaks (120 samples) */
 
 /* helper macros for bounds checking */
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
